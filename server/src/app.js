@@ -1,57 +1,97 @@
 // ============================================
 // app.js - Express Application Setup
 // ============================================
-// This file configures the Express app with:
-//   - CORS (so React frontend can talk to us)
-//   - Body parsing (JSON + large payloads)
-//   - API routes
-//   - Error handling
+
+import express from "express";
+import cors from "cors";
+
+// Import all routes
+import routes from "./routes/index.js";
+
+// Import error handlers
+import {
+  errorHandler,
+  notFoundHandler,
+} from "./middleware/error.middleware.js";
+
+// ============================================
+// Create Express App
 // ============================================
 
-import express from 'express';
-import cors from 'cors';
-
-// Import all routes (bundled in one index file)
-import routes from './routes/index.js';
-
-// Import the global error handler
-import { errorHandler, notFoundHandler } from './middleware/error.middleware.js';
-
-// ---- Create the Express App ----
 const app = express();
 
 // ============================================
-// MIDDLEWARE (runs on every request, in order)
+// CORS
 // ============================================
 
-// 1. CORS: Allow our frontend (React) to talk to this backend
-//    Without this, browsers will block requests from localhost:5173 → localhost:5000
-app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173' }));
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://ai-mock-fend.onrender.com",
+];
 
-// 2. Body Parser: Convert incoming JSON requests to JavaScript objects
-//    10mb limit to handle large resume text and interview data
-app.use(express.json({ limit: '10mb' }));
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      console.log("Blocked CORS origin:", origin);
+      return callback(new Error(`CORS not allowed for origin: ${origin}`));
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
 
 // ============================================
-// ROUTES
+// BODY PARSER
 // ============================================
 
-// Mount all API routes under /api
-// /api/auth      → authentication routes
-// /api/interview → interview routes (start, answer, feedback)
-// /api/resume    → resume upload and parsing routes
-// /api/history   → interview history routes
-app.use('/api', routes);
+app.use(
+  express.json({
+    limit: "10mb",
+  })
+);
 
 // ============================================
-// ERROR HANDLING (must be AFTER routes)
+// HEALTH CHECK
 // ============================================
 
-// Handle 404 - Route not found
+app.get("/", (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "AI Mock Interview API is running",
+    environment: process.env.NODE_ENV || "development",
+  });
+});
+
+// ============================================
+// API ROUTES
+// ============================================
+
+// /api/auth
+// /api/interview
+// /api/resume
+// /api/history
+
+app.use("/api", routes);
+
+// ============================================
+// ERROR HANDLING
+// ============================================
+
+// 404
 app.use(notFoundHandler);
 
-// Handle all other errors (500, validation errors, etc.)
+// Global error handler
 app.use(errorHandler);
 
-// Export the app (used in server.js)
+// ============================================
+// EXPORT
+// ============================================
+
 export default app;
